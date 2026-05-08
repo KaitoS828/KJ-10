@@ -1,0 +1,404 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>KJ-10 両面名刺印刷</title>
+  <style>
+    @media screen {
+      *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+      body {
+        font-family: -apple-system, BlinkMacSystemFont, 'Hiragino Sans', 'Yu Gothic UI', sans-serif;
+        background: #0d0d1a;
+        color: #e0e0f0;
+        min-height: 100vh;
+        padding: 24px 16px 48px;
+      }
+
+      header {
+        text-align: center;
+        margin-bottom: 20px;
+      }
+
+      header h1 {
+        font-size: 1.35rem;
+        color: #22d3ee;
+        margin-bottom: 4px;
+        letter-spacing: 0.03em;
+      }
+
+      header p { font-size: 0.75rem; color: #555; }
+
+      .toolbar {
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        gap: 12px;
+        margin-bottom: 12px;
+        flex-wrap: wrap;
+      }
+
+      .tab-group {
+        display: flex;
+        border: 1.5px solid #22d3ee;
+        border-radius: 8px;
+        overflow: hidden;
+      }
+
+      .tab-btn {
+        padding: 7px 28px;
+        background: transparent;
+        color: #22d3ee;
+        border: none;
+        cursor: pointer;
+        font-size: 0.9rem;
+        font-weight: 600;
+        transition: background 0.15s, color 0.15s;
+      }
+
+      .tab-btn.active { background: #22d3ee; color: #000; }
+
+      .print-btn {
+        padding: 7px 22px;
+        background: #22d3ee;
+        color: #000;
+        border: none;
+        border-radius: 8px;
+        font-size: 0.9rem;
+        font-weight: 700;
+        cursor: pointer;
+        transition: opacity 0.15s;
+      }
+
+      .print-btn:hover { opacity: 0.8; }
+
+      .info-bar {
+        text-align: center;
+        font-size: 0.72rem;
+        color: #555;
+        margin-bottom: 16px;
+        line-height: 1.8;
+      }
+
+      .info-bar strong { color: #22d3ee; }
+
+      .sheet-wrap {
+        overflow-x: auto;
+        padding-bottom: 16px;
+      }
+
+      /* A4縦 420px幅でプレビュー (スケール: 420/210 = 2.0 px/mm) */
+      .sheet-preview {
+        width: 420px;
+        height: 594px; /* 420 * 297/210 */
+        background: #fff;
+        margin: 0 auto;
+        position: relative;
+        box-shadow: 0 8px 40px rgba(0, 0, 0, 0.7);
+        border-radius: 3px;
+      }
+
+      .preview-grid {
+        position: absolute;
+        top: 28px;   /* 14mm * 2.0 */
+        left: 28px;  /* 14mm * 2.0 */
+        display: grid;
+        grid-template-columns: repeat(2, 182px); /* 91mm * 2.0 */
+        grid-template-rows: repeat(5, 110px);    /* 55mm * 2.0 */
+        column-gap: 6px;  /* 3mm * 2.0 */
+        row-gap: 0;
+      }
+
+      .upload-slot {
+        border: 1.5px dashed #ccc;
+        cursor: pointer;
+        position: relative;
+        overflow: hidden;
+        background: #f8f8f8;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        transition: border-color 0.15s, background 0.15s;
+      }
+
+      .upload-slot:hover { border-color: #22d3ee; background: #edfcff; }
+
+      .upload-slot img {
+        position: absolute;
+        inset: 0;
+        width: 100%;
+        height: 100%;
+        object-fit: cover;
+        pointer-events: none;
+      }
+
+      .slot-badge {
+        position: absolute;
+        top: 4px;
+        left: 4px;
+        background: rgba(0, 0, 0, 0.5);
+        color: #fff;
+        border-radius: 3px;
+        font-size: 9px;
+        padding: 1px 5px;
+        z-index: 2;
+        pointer-events: none;
+        font-weight: 700;
+      }
+
+      .slot-hint {
+        text-align: center;
+        color: #bbb;
+        font-size: 9px;
+        line-height: 1.7;
+        user-select: none;
+        pointer-events: none;
+        padding: 4px;
+      }
+
+      .clear-btn {
+        position: absolute;
+        top: 4px;
+        right: 4px;
+        background: rgba(220, 38, 38, 0.8);
+        color: #fff;
+        border: none;
+        border-radius: 3px;
+        font-size: 8px;
+        padding: 2px 5px;
+        cursor: pointer;
+        z-index: 3;
+        opacity: 0;
+        transition: opacity 0.15s;
+      }
+
+      .upload-slot:hover .clear-btn { opacity: 1; }
+
+      .tab-panel { display: none; }
+      .tab-panel.active { display: block; }
+
+      .print-pages { display: none; }
+    }
+
+    /* ===== 印刷スタイル ===== */
+    @media print {
+      *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+      @page {
+        size: A4 portrait;
+        margin: 0;
+      }
+
+      body { background: white; }
+
+      header,
+      .toolbar,
+      .info-bar,
+      .sheet-wrap,
+      .tab-panel { display: none !important; }
+
+      .print-pages {
+        display: block !important;
+      }
+
+      .print-page {
+        width: 210mm;
+        height: 297mm;
+        position: relative;
+        overflow: hidden;
+        page-break-after: always;
+      }
+
+      .print-page:last-child { page-break-after: avoid; }
+
+      .print-grid {
+        position: absolute;
+        top: 14mm;
+        left: 14mm;
+        display: grid;
+        grid-template-columns: repeat(2, 91mm);
+        grid-template-rows: repeat(5, 55mm);
+        column-gap: 3mm;
+        row-gap: 0;
+      }
+
+      .print-cell {
+        width: 91mm;
+        height: 55mm;
+        overflow: hidden;
+      }
+
+      .print-cell img {
+        width: 100%;
+        height: 100%;
+        object-fit: cover;
+      }
+    }
+  </style>
+</head>
+<body>
+
+  <header>
+    <h1>KOKUYO KJ-10 両面名刺印刷</h1>
+    <p>A4縦 &nbsp;|&nbsp; 2列×5行 &nbsp;|&nbsp; 91mm×55mm &nbsp;|&nbsp; 10面</p>
+  </header>
+
+  <div class="toolbar">
+    <div class="tab-group">
+      <button class="tab-btn active" data-tab="front">表面</button>
+      <button class="tab-btn" data-tab="back">裏面</button>
+    </div>
+    <button class="print-btn" onclick="window.print()">印刷する</button>
+  </div>
+
+  <p class="info-bar">
+    各マスをクリックして画像を選択 &nbsp;|&nbsp;
+    印刷設定: <strong>A4縦・両面印刷・長辺とじ</strong>
+    &nbsp;|&nbsp; 裏面は印刷時に自動でミラー補正されます
+  </p>
+
+  <!-- 表面プレビュー -->
+  <div class="tab-panel active" data-panel="front">
+    <div class="sheet-wrap">
+      <div class="sheet-preview">
+        <div class="preview-grid" id="grid-front"></div>
+      </div>
+    </div>
+  </div>
+
+  <!-- 裏面プレビュー -->
+  <div class="tab-panel" data-panel="back">
+    <div class="sheet-wrap">
+      <div class="sheet-preview">
+        <div class="preview-grid" id="grid-back"></div>
+      </div>
+    </div>
+  </div>
+
+  <!-- 印刷用ページ（画面では非表示） -->
+  <div class="print-pages">
+    <div class="print-page">
+      <div class="print-grid" id="print-front"></div>
+    </div>
+    <div class="print-page">
+      <div class="print-grid" id="print-back"></div>
+    </div>
+  </div>
+
+  <script>
+    const images = {
+      front: Array(10).fill(null),
+      back: Array(10).fill(null),
+    };
+
+    // 長辺とじ（左右反転）での裏面印刷順
+    // 表面: [0,1] [2,3] [4,5] [6,7] [8,9]  (2列×5行)
+    // 裏面: [1,0] [3,2] [5,4] [7,6] [9,8]  ← 各行の列を入れ替えてミラー補正
+    const BACK_PRINT_ORDER = [1, 0, 3, 2, 5, 4, 7, 6, 9, 8];
+
+    function buildGrid(side) {
+      const grid = document.getElementById(`grid-${side}`);
+      grid.innerHTML = '';
+
+      for (let i = 0; i < 10; i++) {
+        const slot = document.createElement('div');
+        slot.className = 'upload-slot';
+
+        const badge = document.createElement('span');
+        badge.className = 'slot-badge';
+        badge.textContent = i + 1;
+
+        const hint = document.createElement('div');
+        hint.className = 'slot-hint';
+        hint.innerHTML = `クリックして<br>画像を選択`;
+
+        const clearBtn = document.createElement('button');
+        clearBtn.className = 'clear-btn';
+        clearBtn.textContent = '削除';
+        clearBtn.addEventListener('click', (e) => {
+          e.stopPropagation();
+          images[side][i] = null;
+          refreshSlotView(slot, null);
+          rebuildPrintGrid(side);
+        });
+
+        const input = document.createElement('input');
+        input.type = 'file';
+        input.accept = 'image/*';
+        input.style.display = 'none';
+        input.addEventListener('change', (e) => {
+          const file = e.target.files[0];
+          if (!file) return;
+          const reader = new FileReader();
+          reader.onload = (ev) => {
+            images[side][i] = ev.target.result;
+            refreshSlotView(slot, ev.target.result);
+            rebuildPrintGrid(side);
+          };
+          reader.readAsDataURL(file);
+          input.value = '';
+        });
+
+        slot.append(badge, hint, clearBtn, input);
+        slot.addEventListener('click', () => input.click());
+        grid.appendChild(slot);
+      }
+    }
+
+    function refreshSlotView(slot, dataUrl) {
+      let img = slot.querySelector('img');
+      const hint = slot.querySelector('.slot-hint');
+      if (dataUrl) {
+        if (!img) {
+          img = document.createElement('img');
+          slot.insertBefore(img, slot.firstChild);
+        }
+        img.src = dataUrl;
+        hint.style.visibility = 'hidden';
+      } else {
+        img?.remove();
+        hint.style.visibility = '';
+      }
+    }
+
+    function rebuildPrintGrid(side) {
+      const grid = document.getElementById(`print-${side}`);
+      grid.innerHTML = '';
+      const order = side === 'back'
+        ? BACK_PRINT_ORDER
+        : Array.from({ length: 10 }, (_, i) => i);
+
+      for (const idx of order) {
+        const cell = document.createElement('div');
+        cell.className = 'print-cell';
+        if (images[side][idx]) {
+          const img = document.createElement('img');
+          img.src = images[side][idx];
+          cell.appendChild(img);
+        }
+        grid.appendChild(cell);
+      }
+    }
+
+    // タブ切り替え
+    document.querySelectorAll('.tab-btn').forEach(btn => {
+      btn.addEventListener('click', () => {
+        const tab = btn.dataset.tab;
+        document.querySelectorAll('.tab-btn').forEach(b => {
+          b.classList.toggle('active', b === btn);
+        });
+        document.querySelectorAll('.tab-panel').forEach(p => {
+          p.classList.toggle('active', p.dataset.panel === tab);
+        });
+      });
+    });
+
+    // 初期化
+    buildGrid('front');
+    buildGrid('back');
+    rebuildPrintGrid('front');
+    rebuildPrintGrid('back');
+  </script>
+</body>
+</html>
