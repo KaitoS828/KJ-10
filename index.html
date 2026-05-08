@@ -259,7 +259,7 @@
         display: grid;
         grid-template-columns: repeat(2, 91mm);
         grid-template-rows: repeat(5, 55mm);
-        column-gap: 3mm;
+        column-gap: calc(3mm + var(--gap-adjust, 0mm));
         row-gap: 0;
       }
 
@@ -307,6 +307,11 @@
     <label>
       <span>↔</span> 左右補正
       <input class="offset-input" type="number" id="offset-x" value="0" step="0.5" min="-15" max="15">
+      mm
+    </label>
+    <label>
+      <span>⟺</span> 列間隔補正
+      <input class="offset-input" type="number" id="gap-adjust" value="0" step="0.5" min="-3" max="10">
       mm
     </label>
   </div>
@@ -452,11 +457,14 @@
     function applyOffset() {
       const y = parseFloat(document.getElementById('offset-y').value) || 0;
       const x = parseFloat(document.getElementById('offset-x').value) || 0;
+      const g = parseFloat(document.getElementById('gap-adjust').value) || 0;
       document.documentElement.style.setProperty('--offset-y', y + 'mm');
       document.documentElement.style.setProperty('--offset-x', x + 'mm');
+      document.documentElement.style.setProperty('--gap-adjust', g + 'mm');
     }
     document.getElementById('offset-y').addEventListener('input', applyOffset);
     document.getElementById('offset-x').addEventListener('input', applyOffset);
+    document.getElementById('gap-adjust').addEventListener('input', applyOffset);
 
     // 初期化
     buildGrid('front');
